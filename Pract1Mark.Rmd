@@ -1,0 +1,68 @@
+---
+title: "Pract1"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+require(geoR)
+```
+
+## Question 1
+
+We compare the residuals of 1st and 2nd order mean trends. It appears that the 2nd order residual trend is more suitable due to it's bell shape. This is supported using the AIC and log likelihood which give superior values for the 2nd order model when compare to the 1st order and constant mean trend models.
+
+```{r}
+data(parana)
+plot(parana, trend = "1st", lowess = TRUE)
+# residuals look better in 2nd order, residual density more normal
+plot(parana, trend = "2nd", lowess = TRUE)
+```
+```{r, include=FALSE}
+(parana.ml0 <- likfit(parana, ini = c(4500, 50), nug = 500))
+(parana.ml1 <- likfit(parana, trend = "1st", ini = c(1000, 50), nug = 100))
+(parana.ml2 <- likfit(parana, trend = "2nd", ini = c(1000, 50), nug = 100))
+```
+
+```{r}
+logLik(parana.ml0)
+logLik(parana.ml1)
+logLik(parana.ml2)
+parana.ml0$AIC
+parana.ml1$AIC
+parana.ml2$AIC
+```
+
+## Question 2
+
+```{r, include=F}
+parana.gr <- pred_grid(parana$borders, by = 15)
+args(krige.control)
+args(output.control)
+KC <- krige.control(obj.m = parana.ml1, trend.d = "1st", trend.l = "1st")
+OC <- output.control(simulations = TRUE, n.pred = 1000, quantile = c(0.1, 0.25, 0.5, 0.75, 
+                                                          0.9), threshold = 350)
+parana.kc <- krige.conv(parana, loc = parana.gr, krige = KC, output = OC)
+names(parana.kc)
+args(krige.bayes)
+parana.bayes <- krige.bayes(parana, loc = parana.gr, model = model.control(trend.d = "1st", 
+    trend.l = "1st"), prior = prior.control(phi.prior = "rec", phi.disc = seq(0, 150, by = 15)), 
+    output = OC)
+parana.kc$diff <- parana.kc$krige.var - parana.bayes$predictive$variance
+
+```
+
+Below I plot the kriging variance and predictive variance from the Bayesian method respectively. There appears at first sight to be greater variation in the Bayesian case.
+```{r}
+image(parana.kc, val=parana.kc$krige.var, col = terrain.colors(21), x.leg = c(500, 750), y.leg = c(0, 50))
+image(parana.bayes, val = parana.bayes$predictive$variance, col = terrain.colors(21))
+```
+This increased Bayesian variation is confirmed in the summary statistics of the conventional kriging and Bayesian alternative.
+```{r}
+summary(parana.kc$krige.var)
+summary(parana.bayes$predictive$variance)
+```
+Finally I plot the kriging variance - Bayesian variance. Kriging variance appears greater in areas further away from plots, but smaller nearer areas of high sampling.
+```{r}
+image(parana.kc, val=parana.kc$diff, col = terrain.colors(21), x.leg = c(500, 750), y.leg = c(0, 50))
+
+````
