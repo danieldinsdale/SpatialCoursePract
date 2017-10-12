@@ -1,0 +1,98 @@
+# Apply the EnviroStat package version of the early WLS deformation
+# algorithm
+library(EnviroStat)
+library(MASS)
+
+source("http://www.stat.washington.edu/peter/PASI/deformloglik.l1.R")
+source("http://www.stat.washington.edu/peter/591/labs/Lab2/visualize.tps.warps.R")
+source("http://www.stat.washington.edu/peter/591/labs/Lab2/draw2.R")  # to replace a function in EnviroStat
+######################################################
+# For reading the French precipitation dataset
+plot.title <- "Pluie.LanguedocRoussillon"
+Pluie <- read.csv("http://www.stat.washington.edu/peter/PASI/pluieNA.novdec.csv")
+Pluie <- Pluie[, -1]
+PluieStations <- read.csv("http://www.stat.washington.edu/peter/PASI/pluieStations.Practicum.csv")
+X <- as.matrix(PluieStations[, c("x", "y")])
+dimnames(X) <- list(PluieStations$numero, c("x", "y"))
+# Feel free to look at the other columns of PluieStations to see, for
+# example, site names.  Take a quick look at the configuration of the
+# monitoring sites
+plot(X[, 1], X[, 2], asp = 1, type = "n")
+text(X[, 1], X[, 2], dimnames(X)[[1]])
+S <- cov(log(Pluie + 1), use = "pair")  # Pairwise covariances for log precip
+t <- nrow(Pluie)
+#######################################################
+Xs <- scale(X,scale=FALSE)  
+Xs <- Xs/sqrt(sum(Xs^2))
+Xsvd <- svd(Xs)
+# Here we make sure diaonal elements of rotation matrix are positive
+# by scaling columns by +/- 1.  This is to keep the rotation from flipping
+# the orientation entirely.
+Xsvd$v[,1] <- Xsvd$v[,1] * sign(Xsvd$v[1,1]) # 
+Xsvd$v[,2] <- Xsvd$v[,2] * sign(Xsvd$v[2,2])
+Xt <- Xs %*% Xsvd$v
+xscaling <- list(mean=attr(Xs,"scaled:center"),
+                 #scale=attr(Xs,"scaled:scale")*sqrt(2*(n-1)),
+                 scale=1,
+                 rotation=Xsvd$v)
+X0 <- X   # Save initial coordinates
+X <- Xt   # Replace X with center, scaled, rotated coordinates
+n <- nrow(X)
+# Take a quick look at the standardized configuration of the monitoring sites
+# for comparison to what you looked at above.
+plot(X[,1],X[,2],asp=1,type="n")
+text(X[,1],X[,2],dimnames(X)[[1]])
+################################################
+# Part 1 #######################################
+################################################
+Cor <- S/sqrt(diag(S) %o% diag(S))
+Disp <- 2 - 2 * Cor
+Gdist <- as.matrix(dist(X, upper = T, diag = T))
+plot(Gdist, Disp)
+################################################
+h.lt <- Gdist[row(Gdist) < col(Gdist)]
+disp.lt <- Disp[row(Disp) < col(Disp)]
+variogfit <- EnviroStat::Fvariogfit3(disp.lt, h.lt, a0 = 0.1, t0 = 1, verbose = T)
+x <- seq(min(h.lt), max(h.lt), 0.01)
+a0 <- variogfit$a[1]
+t0 <- variogfit$t0
+
+plot(-0.2, 0, xlim = c(0, max(h.lt)), ylim = c(0, 2), xlab = "Dist", ylab = "Dispersion", 
+     type = "n", main = c("Intersite dispersion vs intersite distance"))
+for (i in 1:(n - 1)) for (j in (i + 1):n) points(Gdist[i, j], Disp[i, j])
+lines(x, a0 + (2 - a0) * (1 - exp(-(t0 * x))), col = "red")
+# Step 1
+source("http://www.stat.washington.edu/peter/591/labs/Lab2/plotCoordChange.R")
+source("http://www.stat.washington.edu/peter/591/labs/Lab2/plotDispersionDist.R")
+assignInNamespace("plotCoordChange", plotCoordChange, ns = "EnviroStat")
+assignInNamespace("plotDispersionDist", plotDispersionDist, ns = "EnviroStat")
+sg.est <- Falternate3(Disp, X, max.iter = 100, alter.lim = 25, model = 1, lambda = 0)
+######################################
+source("http://www.stat.washington.edu/peter/591/labs/Lab2/Ftransdraw.R")
+assignInNamespace("Ftransdraw", Ftransdraw, ns = "EnviroStat")
+coords.grid <- Fmgrid(range(X[, 1]), range(X[, 2]))
+par(mfrow = c(1, 2))
+# temp <- setplot(X, axes = TRUE)
+plot(X, type = "n", xlab = "", ylab = "", asp = T)
+deform <- Ftransdraw(disp = Disp, Gcrds = X, MDScrds = sg.est$ncoords, gridstr = coords.grid)
+# 0.001
+penParam=40
+lam <- penParam
+sg.est <- Falternate3(Disp, X, max.iter = 100, alter.lim = 25, model = 1, lambda = lam)
+Tspline <- sinterp(X, sg.est$ncoords, lam = 0)
+temp <- Ftransdraw(disp = Disp, Gcrds = X, MDScrds = Tspline$y, gridstr = coords.grid, 
+                   eye = F)
+########################################
+par(mfrow = c(1, 1), mgp = c(2, 0.75, 0))
+Tgrid <- bgrid(start = c(0, 0), xmat = X, coef = Tspline$sol)
+
+plot(X, xlab = "", ylab = "", type = "n", asp = TRUE)
+text(X, labels = 1:nrow(X), cex = 0.75)
+Bgrid.title <- paste("WLS Bgrid: ", plot.title, "\n lambda=", lam, sep = "")
+drawout <- draw2(Tgrid, fs = TRUE, lwidth = c(2, 2), lcolor = topo.colors(5), 
+                 legend = TRUE)
+title(main = Bgrid.title)
+title(sub = "Lines are colored by directional magnitude of the
+      principal axes of the deformation")
+# You might wish to set legend=FALSE if the legend obscures part of the plot
+# in an Rstudio plot window.

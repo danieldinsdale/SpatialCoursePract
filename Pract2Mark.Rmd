@@ -1,0 +1,87 @@
+---
+  title: "Pract2"
+output: html_document
+---
+  
+  ```{r setup, include=FALSE}
+# Apply the EnviroStat package version of the early WLS deformation
+# algorithm
+library(EnviroStat)
+library(MASS)
+```
+```{r}
+# Apply the EnviroStat package version of the early WLS deformation
+# algorithm
+library(EnviroStat)
+library(MASS)
+source("http://www.stat.washington.edu/peter/PASI/deformloglik.l1.R")
+source("http://www.stat.washington.edu/peter/591/labs/Lab2/visualize.tps.warps.R")
+source("http://www.stat.washington.edu/peter/591/labs/Lab2/draw2.R")  # to replace a function in EnviroStat
+######################################################
+# For reading the French precipitation dataset
+plot.title <- "Pluie.LanguedocRoussillon"
+Pluie <- read.csv("http://www.stat.washington.edu/peter/PASI/pluieNA.novdec.csv")
+Pluie <- Pluie[, -1]
+PluieStations <- read.csv("http://www.stat.washington.edu/peter/PASI/pluieStations.Practicum.csv")
+X <- as.matrix(PluieStations[, c("x", "y")])
+dimnames(X) <- list(PluieStations$numero, c("x", "y"))
+# Feel free to look at the other columns of PluieStations to see, for
+# example, site names.  Take a quick look at the configuration of the
+# monitoring sites
+plot(X[, 1], X[, 2], asp = 1, type = "n")
+text(X[, 1], X[, 2], dimnames(X)[[1]])
+S <- cov(log(Pluie + 1), use = "pair")  # Pairwise covariances for log precip
+t <- nrow(Pluie)
+#######################################################
+Xs <- scale(X,scale=FALSE)  
+Xs <- Xs/sqrt(sum(Xs^2))
+Xsvd <- svd(Xs)
+# Here we make sure diaonal elements of rotation matrix are positive
+# by scaling columns by +/- 1.  This is to keep the rotation from flipping
+# the orientation entirely.
+Xsvd$v[,1] <- Xsvd$v[,1] * sign(Xsvd$v[1,1]) # 
+Xsvd$v[,2] <- Xsvd$v[,2] * sign(Xsvd$v[2,2])
+Xt <- Xs %*% Xsvd$v
+xscaling <- list(mean=attr(Xs,"scaled:center"),
+                 #scale=attr(Xs,"scaled:scale")*sqrt(2*(n-1)),
+                 scale=1,
+                 rotation=Xsvd$v)
+X0 <- X   # Save initial coordinates
+X <- Xt   # Replace X with center, scaled, rotated coordinates
+n <- nrow(X)
+# Take a quick look at the standardized configuration of the monitoring sites
+# for comparison to what you looked at above.
+plot(X[,1],X[,2],asp=1,type="n")
+text(X[,1],X[,2],dimnames(X)[[1]])
+################################################
+# Part 1 #######################################
+################################################
+Cor <- S/sqrt(diag(S) %o% diag(S))
+Disp <- 2 - 2 * Cor
+Gdist <- as.matrix(dist(X, upper = T, diag = T))
+plot(Gdist, Disp)
+################################################
+h.lt <- Gdist[row(Gdist) < col(Gdist)]
+disp.lt <- Disp[row(Disp) < col(Disp)]
+variogfit <- EnviroStat::Fvariogfit3(disp.lt, h.lt, a0 = 0.1, t0 = 1, verbose = T)
+x <- seq(min(h.lt), max(h.lt), 0.01)
+a0 <- variogfit$a[1]
+t0 <- variogfit$t0
+require(geoR)
+source("http://www.stat.washington.edu/peter/591/labs/Lab2/plotCoordChange.R")
+source("http://www.stat.washington.edu/peter/591/labs/Lab2/plotDispersionDist.R")
+assignInNamespace("plotCoordChange", plotCoordChange, ns = "EnviroStat")
+assignInNamespace("plotDispersionDist", plotDispersionDist, ns = "EnviroStat")
+source("http://www.stat.washington.edu/peter/591/labs/Lab2/Ftransdraw.R")
+assignInNamespace("Ftransdraw", Ftransdraw, ns = "EnviroStat")
+coords.grid <- Fmgrid(range(X[, 1]), range(X[, 2]))
+par(mfrow = c(1, 2))
+# temp <- setplot(X, axes = TRUE)
+plot(X, type = "n", xlab = "", ylab = "", asp = T)
+
+```
+
+## Question 1
+
+We compare the residuals of 1st and 2nd order mean trends. It appears that the 2nd order residual trend is more suitable due to it's bell shape. This is supported using the AIC and log likelihood which give superior values for the 2nd order model when compare to the 1st order and constant mean trend models.
+
