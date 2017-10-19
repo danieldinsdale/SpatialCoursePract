@@ -52,6 +52,7 @@ hdt.idx <- sample(1:N, M)
 # ===========================================================
 prt <- proc.time()
 
+precip.geo$covariate <- precip.geo$covariate/max(precip.geo$covariate)
 COLprecip.S.model <- Aniso_fit(coords = precip.geo$coords[-hdt.idx, ], data = precip.geo$data[-hdt.idx, 
                                                                                               1], cov.model = "exponential", mean.model = (precip.geo$data[-hdt.idx, 1] ~ 
                                                                                                                                              precip.geo$coords[-hdt.idx, 1] + precip.geo$coords[-hdt.idx, 2] + precip.geo$covariate[-hdt.idx,]))
@@ -213,7 +214,8 @@ Table4 <- data.frame(
   
   beta2 = c(Stationary.Results$model.obj$beta.GLS[3, 1],
             NS1results$results[[1]]$beta.GLS[3, 1]),   #,
-  
+  beta3 = c(Stationary.Results$model.obj$beta.GLS[4, 1],
+            NS1results$results[[1]]$beta.GLS[4, 1]), 
   lam1 = c(as.numeric(Stationary.Results$model.obj$MLEs.save[1]), rep(NA, 1)),
   lam2 = c(as.numeric(Stationary.Results$model.obj$MLEs.save[2]), rep(NA, 1)),
   eta = c(as.numeric(Stationary.Results$model.obj$MLEs.save[3]), rep(NA, 1)),
@@ -246,7 +248,8 @@ grid.locations <- expand.grid(grid.x, grid.y)
 COL.pred.locs <- matrix(c(grid.locations[, 1], grid.locations[, 2]), ncol = 2, 
                         byrow = FALSE)
 
-preds <- predict(NS1results$results[[1]], COL.pred.locs, COL.pred.locs)  # Best NS1 model
+preds <- 
+  (NS1results$results[[1]], COL.pred.locs, COL.pred.locs)  # Best NS1 model
 Spreds <- predict(Stationary.Results$model.obj, COL.pred.locs, COL.pred.locs)
 
 preds.df <- data.frame(longitude = COL.pred.locs[, 1], latitude = COL.pred.locs[, 
